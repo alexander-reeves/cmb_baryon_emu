@@ -7,10 +7,6 @@ training data, and (3) **train** neural-network emulators of those spectra. A
 pure-JAX inference engine is bundled for fast, differentiable prediction after
 training.
 
-It has **no dependency on UPanda / multiprobe_framework** — the emulator engine
-(`integrated_model.py`, `integrated_model_jax.py`, and the `module.py`/`config.py`
-numpy↔jax switch) is copied in and self-contained.
-
 ## Install
 
 ```bash
@@ -23,7 +19,7 @@ pip install -e .[train]     # + TensorFlow training engine
 pip install -e .[jax]       # + JAX/Flax inference engine
 ```
 
-## Predict
+## Make theory prediction (no emulator)
 
 ```python
 from cmb_baryon_emu import utils
@@ -81,22 +77,9 @@ python scripts/convert_saved_models_to_npz.py --canonical-spectra
 compares emulator predictions against the lightweight held-out fixture in
 `data/validation_all_spectra_500.h5` using the packaged JAX/NPZ model. The fixture
 contains 500 examples for all six CMB spectra, compressed to stay suitable for a
-normal GitHub repository.
+normal GitHub repository. Full training data available on request. 
 
-Full training data and legacy TensorFlow/Keras artifacts are intentionally not
-committed: `total_data.h5` is a cluster-scale data product, and `saved_models/`
-is replaced by the lightweight package NPZ exports.
 
-## Layout
+## Questions 
 
-```
-src/cmb_baryon_emu/
-  utils.py                 # predict_cmb_cls, load_config, cosmo_to_bcemu
-  emulator.py              # LHC sampling + row cleaning helpers
-  integrated_model.py      # TF/Keras emulator engine (copied, standalone)
-  integrated_model_jax.py  # JAX/Flax engine (same saved format)
-  jax_emu_model.py         # lightweight packaged JAX/NPZ inference
-  lightweight_models/      # committed compact model weights
-  module.py / config.py    # numpy<->jax backend switch (copied, standalone)
-configs/   scripts/   submission_scripts/   notebooks/
-```
+For questions or feedback, please contact Alexander Reeves: areeves@phys.ethz.ch
