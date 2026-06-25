@@ -1,0 +1,104 @@
+# cmb_baryon_emu training prior.
+#
+# Lists every varied parameter for the LHC. Each entry has:
+#   name          : canonical name (must be in utils.COSMO_PARAMS or BARYON_PARAMS)
+#   role          : "cosmo" or "baryon" (routes the value into the cosmo/bcm dict)
+#   distribution  : "flat" (uses min/max) or "gaussian" (uses distribution_kwargs.mu/cov)
+#
+# Cosmology = the 6 LCDM parameters BCemu natively supports.
+# Gaussian widths follow modrec_configs/emulator_config_cmb.yaml (~2x Planck/Lynch sigma).
+# Baryons  = the 8 BCemu2025 parameters; flat over the emulator's valid ranges
+#            (from BCemu/notebooks/spectra_demo.ipynb PARAM_RANGES).
+
+parameters:
+
+  # ---------------- cosmology (6) ----------------
+  - name: omega_cdm
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.1200
+      cov: 8.836e-05      # sigma = 0.0094
+
+  - name: omega_b
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.02237
+      cov: 1.960e-06      # sigma = 0.0014
+
+  - name: ln10As
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 3.044
+      cov: 1.156e-03      # sigma = 0.034
+
+  - name: n_s
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.9649
+      cov: 3.686e-04      # sigma = 0.0192
+
+  - name: tau
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.0544
+      cov: 2.372e-04      # sigma = 0.0154
+
+  - name: h
+    role: cosmo
+    distribution: flat
+    min: 0.55
+    max: 0.80
+
+  # ---------------- baryons (8, BCemu2025) ----------------
+  - name: log10Mc
+    role: baryon
+    distribution: flat
+    min: 12.0
+    max: 14.5
+
+  - name: Theta_co
+    role: baryon
+    distribution: flat
+    min: 0.05
+    max: 0.60
+
+  - name: mu
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 2.5
+
+  - name: delta
+    role: baryon
+    distribution: flat
+    min: 3.0
+    max: 10.0
+
+  - name: eta
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 0.5
+
+  - name: deta
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 0.5
+
+  - name: Nstar
+    role: baryon
+    distribution: flat
+    min: 0.01
+    max: 0.15
+
+  - name: fb
+    role: baryon
+    distribution: flat
+    min: 0.08
+    max: 0.22

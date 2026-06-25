@@ -1,0 +1,18 @@
+# Generate CMB + baryon training data with cmb_baryon_emu.
+# Run from the package root:
+#   python3 -m esub.epipe submission_scripts/submit_generate.yaml
+#
+# n_gridpoints must equal n_jobs * num_samps_per_index.
+# CAMB at lmax=10000 is the bottleneck (~seconds/sample) -> keep per-index small.
+
+- parameters:
+    - scripts_dir: scripts
+    - executable1: generate_training_data.py
+    - n_jobs: 2000
+    - num_samps_per_index: 500
+    - n_gridpoints: 1000000
+    - config: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/configs/emulator_config_cmb_baryon.yaml
+    - scratch: /cluster/scratch/areeves/cmb_baryon_td
+
+- name: generate_cmb_baryon_training_data
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > $[n_jobs]' --n_jobs=$[n_jobs] --n_gridpoints=$[n_gridpoints] --num_samps_per_index=$[num_samps_per_index] --main_n_cores_per_job=4 --merge_n_cores=8 --merge_memory=4096 --merge_time=24 --mode=jobarray --function='main,merge' --main_time=4 --main_memory=4096 --system=slurm --verbosity=info --scratch="$[scratch]" --filename_config="$[config]" --lmax=10000 --ell_min=2

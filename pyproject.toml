@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmb_baryon_emu"
+version = "0.1.0"
+description = "Lightweight CMB C_ell + baryonic-feedback prediction and neural-network emulator (wraps BCemu)."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Alexander Reeves", email = "areeves@ethz.ch" }]
+
+# Base deps cover prediction (via BCemu) + data generation/merge.
+# NOTE: BCemu (the local fork with the `spectra` module) and CAMB are NOT listed
+# here because BCemu is installed editable from local_packages/BCemu, not PyPI.
+# Install it separately:  pip install -e ../BCemu[spectra]
+dependencies = [
+    "numpy",
+    "scipy",
+    "pyyaml",
+    "h5py",
+    "hdf5plugin",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# Training the emulators (TensorFlow/Keras engine).
+train = ["tensorflow", "scikit-learn"]
+# Pure-JAX inference engine (integrated_model_jax).
+jax = ["jax", "flax"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cmb_baryon_emu = ["../configs/*.yaml", "lightweight_models/*.npz"]

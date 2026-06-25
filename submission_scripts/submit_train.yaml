@@ -1,0 +1,32 @@
+# Train the 6 per-spectrum CMB + baryon emulators with cmb_baryon_emu.
+# Run from the package root:
+#   python3 -m esub.epipe submission_scripts/submit_train.yaml
+#
+# TT/EE -> log preprocessing ; TE -> PCA (TE is signed, cannot be log-transformed).
+# Uncomment the jobs you want to (re)train.
+
+- parameters:
+    - scripts_dir: scripts
+    - executable1: train_emulator.py
+    - data: /cluster/scratch/areeves/cmb_baryon_td/total_data.h5
+    - out: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/saved_models
+    - ntrain: 300000
+    - epochs: 1000
+
+# - name: train_tt_lensed
+#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=4 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_lensed --model_name=tt_lensed --log_preprocess
+
+- name: train_tt_unlensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_unlensed --model_name=tt_unlensed --log_preprocess
+
+- name: train_ee_lensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_lensed --model_name=ee_lensed --log_preprocess
+
+- name: train_ee_unlensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_unlensed --model_name=ee_unlensed --log_preprocess
+
+# - name: train_te_lensed
+#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=4 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_lensed --model_name=te_lensed --pca_preprocess --npca=512
+
+- name: train_te_unlensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_unlensed --model_name=te_unlensed --pca_preprocess --npca=512
