@@ -49,6 +49,17 @@ def setup(args):
     parser.add_argument("--log_preprocess", action="store_true")
     parser.add_argument("--pca_preprocess", action="store_true")
     parser.add_argument("--npca", type=int, default=512)
+    parser.add_argument(
+        "--high_ell_boost", type=float, default=1.0,
+        help="Multiplicative loss weight at the highest multipole relative to the "
+        "lowest, ramped smoothly by --high_ell_power (only applies with "
+        "--log_preprocess). 1.0 disables reweighting.",
+    )
+    parser.add_argument(
+        "--high_ell_power", type=float, default=4.0,
+        help="Exponent controlling how quickly --high_ell_boost ramps on "
+        "(higher = boost concentrated closer to ell_max).",
+    )
     parser.add_argument("--verbosity", type=str, default="warning")
     args = parser.parse_args(args)
 
@@ -70,11 +81,13 @@ def main(indices, args):
             n_total = f["params"].shape[0]
             LOGGER.info("total training samples: %s", n_total)
             x_struct = f["params"][: args.ntrain]
-            y_train = f[args.spectrum][: args.ntrain, :]
+            # float32 halves peak memory vs the source float64 datasets; the
+            # exported model is float32 throughout anyway (see convert_saved_models_to_npz.py).
+            y_train = f[args.spectrum][: args.ntrain, :].astype(np.float32)
 
         param_names = list(x_struct.dtype.names)
         # structured array -> plain float matrix (n_samples, n_params)
-        x_train = np.column_stack([x_struct[n] for n in param_names]).astype(float)
+        x_train = np.column_stack([x_struct[n] for n in param_names]).astype(np.float32)
 
         y_train, x_train = emulator.remove_nan_rows(y_train, x_train)
         y_train, x_train = emulator.remove_zero_rows(y_train, x_train)
@@ -101,6 +114,18 @@ def main(indices, args):
             LOGGER.info("PCA explained variance sum: %.5f", pca.explained_variance_ratio_.sum())
             y_train = pca.transform(normalized)
             rescaling_factor = np.power(pca.explained_variance_, -1)
+
+        if args.log_preprocess and args.high_ell_boost != 1.0:
+            # CustomLoss divides squared_errors by element_weights, so a
+            # boost > 1 at high ell needs a correspondingly small weight there.
+            n_out = y_train.shape[1]
+            ramp = np.linspace(0.0, 1.0, n_out) ** args.high_ell_power
+            boost = 1.0 + (args.high_ell_boost - 1.0) * ramp
+            rescaling_factor = (1.0 / boost).astype(np.float32)
+            LOGGER.info(
+                "high-ell loss boost enabled: %.1fx at ell_max (power=%.1f)",
+                args.high_ell_boost, args.high_ell_power,
+            )
 
         # ---- scalers + model ----
         input_scaler = StandardScaler().fit(x_train)

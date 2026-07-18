@@ -466,8 +466,44 @@ class IntegratedModel:
         X_scaled = self.input_scaler.transform(X)
         y_scaled = self.output_scaler.transform(y)
 
+        batch_size = kwargs.pop("batch_size", 32)
+        validation_split = kwargs.pop("validation_split", 0.0)
+        total_epochs = kwargs.pop("epochs", 200)
+
+        # Mirrors Keras's own validation_split semantics: an unshuffled trailing
+        # slice, taken before any shuffling of the training portion.
+        n_val = int(round(len(X_scaled) * validation_split))
+        if n_val > 0:
+            X_train_arr, X_val_arr = X_scaled[:-n_val], X_scaled[-n_val:]
+            y_train_arr, y_val_arr = y_scaled[:-n_val], y_scaled[-n_val:]
+        else:
+            X_train_arr, y_train_arr = X_scaled, y_scaled
+            X_val_arr = y_val_arr = None
+
+        # Building the Dataset under tf.device("/cpu:0") keeps the full arrays
+        # resident in host RAM; only per-batch slices are staged onto the GPU
+        # during iteration. Passing the raw numpy arrays straight to
+        # model.fit(X, y, ...) instead lets Keras eagerly place the whole
+        # array as a GPU constant, which OOMs once the dataset no longer fits
+        # in GPU VRAM (observed with EE_unlensed at ntrain=900k on a 22GB GPU).
+        with tf.device("/cpu:0"):
+            train_ds = (
+                tf.data.Dataset.from_tensor_slices((X_train_arr, y_train_arr))
+                .shuffle(len(X_train_arr), reshuffle_each_iteration=True)
+                .batch(batch_size)
+                .prefetch(tf.data.AUTOTUNE)
+            )
+            val_ds = None
+            if X_val_arr is not None:
+                val_ds = (
+                    tf.data.Dataset.from_tensor_slices((X_val_arr, y_val_arr))
+                    .batch(batch_size)
+                    .prefetch(tf.data.AUTOTUNE)
+                )
+
         early_stopping = EarlyStopping(
-            monitor="val_loss", patience=100, verbose=1, restore_best_weights=True
+            monitor="val_loss" if val_ds is not None else "loss",
+            patience=100, verbose=1, restore_best_weights=True,
         )
 
         for lr in learning_rates:
@@ -478,9 +514,6 @@ class IntegratedModel:
             self.model.compile(
                 optimizer=tf.keras.optimizers.Adam(learning_rate=lr), loss=custom_loss
             )
-
-            # Get the total number of epochs (this can be adjusted based on your needs)
-            total_epochs = kwargs.get("epochs", 200)
 
             # Wrap the training in a tqdm progress bar
             with tqdm(total=total_epochs, unit="epoch", postfix={}) as pbar:
@@ -504,8 +537,9 @@ class IntegratedModel:
 
                 # Train the model with early stopping and tqdm callback
                 self.model.fit(
-                    X_scaled,
-                    y_scaled,
+                    train_ds,
+                    validation_data=val_ds,
+                    epochs=total_epochs,
                     callbacks=[
                         early_stopping,
                         LambdaCallback(on_epoch_end=on_epoch_end),

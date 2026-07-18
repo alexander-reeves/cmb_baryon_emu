@@ -24,8 +24,19 @@
 - name: train_ee_lensed
   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=8192 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_lensed --model_name=ee_lensed --log_preprocess
 
+# EE_unlensed's high-ell tail (ell gtrsim 8000) had median/p97.5 relative error of
+# ~0.3%/6-8% vs <0.1%/0.4% for the other spectra (see validate_emulator_accuracy.ipynb,
+# Jul 2026). Tried --high_ell_boost (loss reweighting) first: no measurable effect
+# (early-stopped sooner, same tail error), suggesting a capacity/data ceiling rather
+# than a loss-weighting problem. total_data.h5 has 1e6 rows but only the first 300k
+# were ever used for training -- 700k already-generated, never-seen samples are
+# sitting idle. Trying more data next: ntrain 300k -> 900k (still leaves the tail
+# used by validate_emulator_accuracy.ipynb's held-out fixture untouched).
+# ntrain=900000 needs much more RAM than the shared $[ntrain]=300000 default, so it's
+# hardcoded here along with a bumped --main_memory (train_emulator.py now also loads
+# x_train/y_train as float32 instead of float64 to roughly halve peak memory).
 - name: train_ee_unlensed
-  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=8192 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_unlensed --model_name=ee_unlensed --log_preprocess
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=16384 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=900000 --epochs=$[epochs] --spectrum=EE_unlensed --model_name=ee_unlensed --log_preprocess
 
 # - name: train_te_lensed
 #   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=4 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_lensed --model_name=te_lensed --pca_preprocess --npca=512
