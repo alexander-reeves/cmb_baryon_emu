@@ -42,9 +42,10 @@ notebooks/.ipynb_checkpoints/
 saved_models/
 saved_models_*/
 
-# Keep only the lightweight validation fixture in data/.
+# Keep only the lightweight validation fixtures in data/.
 data/*
 !data/validation_all_spectra_500.h5
+!data/validation_lss_500.h5
 
 # Guard against accidental full training/data products elsewhere.
 *.h5
@@ -52,6 +53,7 @@ data/*
 *.npz
 *.npy
 !data/validation_all_spectra_500.h5
+!data/validation_lss_500.h5
 
 # Lightweight JAX model exports are small enough to ship with the package.
 !src/cmb_baryon_emu/lightweight_models/

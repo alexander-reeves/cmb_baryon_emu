@@ -229,6 +229,10 @@ compares emulator predictions against the lightweight held-out fixture in
 contains 500 examples for all six CMB spectra, compressed to stay suitable for a
 normal GitHub repository. Full training data available on request. 
 
+[`notebooks/validate_lss_emulator_accuracy.ipynb`](notebooks/validate_lss_emulator_accuracy.ipynb)
+does the same for `pk_lin`, P_NL (`pk_lin` x `pk_nl_boost`) and `clpp`, against
+`data/validation_lss_500.h5`: the last 500 rows of the LSS training set, all held out.
+
 
 ## Questions 
 
