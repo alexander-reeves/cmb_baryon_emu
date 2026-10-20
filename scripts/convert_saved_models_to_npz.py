@@ -78,6 +78,24 @@ def export_model(model_stem, output_dir, output_name=None):
     if attrs["galaxy_bias_config"] is not None:
         raise NotImplementedError(f"{model_stem.name}: galaxy-bias exports are not supported yet")
 
+    # P(k) models: train_emulator.py records the k/z grids, the (n_z, n_k) shape of
+    # the flattened output and the ratio denominator in a sidecar, which the
+    # *_temp checkpoint shares with its final save.
+    axes_path = model_stem.with_name(model_stem.name.removesuffix("_temp") + "_axes.npz")
+    pk_axes = None
+    if axes_path.exists():
+        with np.load(axes_path, allow_pickle=False) as axes:
+            pk_axes = {
+                "spectrum": str(axes["spectrum"]),
+                "k_unit": str(axes["k_unit"]),
+                "ratio_to": str(axes["ratio_to"]),
+            }
+            pk_arrays = {
+                "pk_k": axes["pk_k"].astype(np.float64),
+                "pk_z": axes["pk_z"].astype(np.float64),
+                "pk_shape": axes["shape"].astype(np.int64),
+            }
+
     weights, activations = tf_network_arrays(model_h5)
     arrays = {
         "metadata_json": np.array(
@@ -89,6 +107,7 @@ def export_model(model_stem, output_dir, output_name=None):
                     "rescale_by_as": attrs["rescale_by_as"],
                     "cheby_preprocess": attrs["cheby_preprocess"],
                     "has_pca": attrs["pca"] is not None,
+                    "pk_axes": pk_axes,
                 }
             )
         ),
@@ -116,6 +135,9 @@ def export_model(model_stem, output_dir, output_name=None):
         arrays["pca_mean"] = attrs["pca"].mean_.astype(np.float32)
         arrays["pca_scaler_mean"] = attrs["pca_scaler"].mean_.astype(np.float32)
         arrays["pca_scaler_scale"] = attrs["pca_scaler"].scale_.astype(np.float32)
+
+    if pk_axes is not None:
+        arrays.update(pk_arrays)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{output_name or model_stem.name}.npz"

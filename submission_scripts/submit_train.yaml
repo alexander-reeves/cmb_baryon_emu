@@ -1,45 +1,74 @@
-# Train the 6 per-spectrum CMB + baryon emulators with cmb_baryon_emu.
+# Train the 7 per-spectrum CMB + baryon emulators with cmb_baryon_emu.
 # Run from the package root:
+#   source submission_scripts/setup_env.sh
 #   python3 -m esub.epipe submission_scripts/submit_train.yaml
 #
-# TT/EE -> log preprocessing ; TE -> PCA (TE is signed, cannot be log-transformed).
-# Uncomment the jobs you want to (re)train.
+# TT/EE/clkk -> log preprocessing ; TE -> PCA (TE is signed, cannot be log-transformed).
+#
+# Aug 2026 retrain, on the regenerated total_data.h5 (997,500 rows):
+#  * every model is retrained together because generate_training_data.py's params
+#    array was fixed. It used to broadcast each sample across all 14 fields, so the
+#    trainer saw the 14 parameters tiled to 196 columns; it now stores them once and
+#    the input layer is 14 wide. Models from before that fix cannot read this data.
+#  * ntrain 300000 -> 900000 for all jobs. The Jul 2026 EE_unlensed run showed its
+#    high-ell tail (ell gtrsim 8000, median/p97.5 error ~0.3%/6-8% vs <0.1%/0.4%
+#    elsewhere) was a data/capacity ceiling, not a loss-weighting problem:
+#    --high_ell_boost changed nothing. 900k leaves ~97.5k rows untouched for the
+#    held-out validation fixture.
+#  * --main_memory=16384 everywhere (900k x 9999 float32 is ~36 GB for y_train
+#    alone; train_emulator.py loads float32 rather than float64 to halve this).
+#    The TE jobs get more: PCA fits a 512-component decomposition over the full
+#    900k x 9999 matrix, which peaks well above the log-preprocessing path.
 
 - parameters:
     - scripts_dir: scripts
     - executable1: train_emulator.py
     - data: /cluster/scratch/areeves/cmb_baryon_td/total_data.h5
     - out: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/saved_models
-    - ntrain: 300000
+    - ntrain: 900000
     - epochs: 1000
+    - source_file: submission_scripts/setup_env.sh
+    - mem: 16384
+    # esub's --main_memory is per core, so this is x20. Do not raise it much
+    # further: 32768 (655 GB) is unschedulable -- the common GPU nodes have
+    # 373-513 GB total. 16384 -> 327 GB is already ~4x the ~72 GB peak of the
+    # PCA path (float32 y_train plus its standardized copy).
+    - mem_pca: 16384
 
-# - name: train_tt_lensed
-#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=4 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_lensed --model_name=tt_lensed --log_preprocess
+- name: train_tt_lensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_lensed --model_name=tt_lensed --log_preprocess
 
-# - name: train_tt_unlensed
-#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_unlensed --model_name=tt_unlensed --log_preprocess
+- name: train_tt_unlensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TT_unlensed --model_name=tt_unlensed --log_preprocess
 
-# EE jobs need more memory: the Jun 2026 runs were OOM-killed at 4096 MB/core
-# (float64 training array + scaler copies peak above 80 GB total).
 - name: train_ee_lensed
-  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=8192 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_lensed --model_name=ee_lensed --log_preprocess
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_lensed --model_name=ee_lensed --log_preprocess
 
-# EE_unlensed's high-ell tail (ell gtrsim 8000) had median/p97.5 relative error of
-# ~0.3%/6-8% vs <0.1%/0.4% for the other spectra (see validate_emulator_accuracy.ipynb,
-# Jul 2026). Tried --high_ell_boost (loss reweighting) first: no measurable effect
-# (early-stopped sooner, same tail error), suggesting a capacity/data ceiling rather
-# than a loss-weighting problem. total_data.h5 has 1e6 rows but only the first 300k
-# were ever used for training -- 700k already-generated, never-seen samples are
-# sitting idle. Trying more data next: ntrain 300k -> 900k (still leaves the tail
-# used by validate_emulator_accuracy.ipynb's held-out fixture untouched).
-# ntrain=900000 needs much more RAM than the shared $[ntrain]=300000 default, so it's
-# hardcoded here along with a bumped --main_memory (train_emulator.py now also loads
-# x_train/y_train as float32 instead of float64 to roughly halve peak memory).
 - name: train_ee_unlensed
-  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=16384 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=900000 --epochs=$[epochs] --spectrum=EE_unlensed --model_name=ee_unlensed --log_preprocess
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=EE_unlensed --model_name=ee_unlensed --log_preprocess
 
-# - name: train_te_lensed
-#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=4 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_lensed --model_name=te_lensed --pca_preprocess --npca=512
+- name: train_te_lensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem_pca] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_lensed --model_name=te_lensed --pca_preprocess --npca=512
 
-# - name: train_te_unlensed
-#   cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=4096 --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_unlensed --model_name=te_unlensed --pca_preprocess --npca=512
+- name: train_te_unlensed
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem_pca] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=TE_unlensed --model_name=te_unlensed --pca_preprocess --npca=512
+
+# --- matter power spectra -------------------------------------------------
+# Targets are (21, 300) per sample, flattened by train_emulator.py to a 6300-wide
+# output; the <model>_axes.npz sidecar records k, z and the shape so predictions
+# reshape back. All positive and spanning ~7 decades -> log preprocessing.
+# --input_params defaults to 'auto': pk_lin/pk_nl are dark-matter-only so they take
+# the 6 cosmological parameters, pk_dmb takes all 14.
+
+- name: train_pk_lin
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=pk_lin --model_name=pk_lin --log_preprocess
+
+- name: train_pk_nl
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=pk_nl --model_name=pk_nl --log_preprocess
+
+- name: train_pk_dmb
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=pk_dmb --model_name=pk_dmb --log_preprocess
+
+# clkk is positive over ell >= 2, so it trains like TT/EE with log preprocessing.
+- name: train_clkk
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=20 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=clkk --model_name=clkk --log_preprocess

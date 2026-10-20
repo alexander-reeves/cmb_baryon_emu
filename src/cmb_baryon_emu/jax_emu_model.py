@@ -26,6 +26,7 @@ class JaxNpzModel:
         self.hyper_params = []
         self.parameter_names = None
         self.metadata = {}
+        self.pk_axes = None
 
     @classmethod
     def from_package(cls, model_name):
@@ -72,6 +73,13 @@ class JaxNpzModel:
                 self.pca_scaler_mean = jnp.asarray(data["pca_scaler_mean"])
                 self.pca_scaler_scale = jnp.asarray(data["pca_scaler_scale"])
 
+            # P(k) exports: the output is (n_z, n_k) flattened z-major, on these grids
+            self.pk_axes = metadata.get("pk_axes")
+            if self.pk_axes is not None:
+                self.pk_k = np.asarray(data["pk_k"])
+                self.pk_z = np.asarray(data["pk_z"])
+                self.pk_shape = tuple(int(n) for n in data["pk_shape"])
+
             if self.cheby_preprocess:
                 raise NotImplementedError("NPZ JAX loader does not yet support Chebyshev exports")
 
@@ -103,6 +111,16 @@ class JaxNpzModel:
 
         matrix = np.column_stack([data_dict[name] for name in self.parameter_names]).astype(float)
         return self.predict_matrix(matrix)
+
+    def predict_pk(self, data_dict):
+        """Predict a P(k) model as (n, n_z, n_k) on the ``pk_z`` x ``pk_k`` grid.
+
+        A model whose ``pk_axes["ratio_to"]`` is set predicts the ratio to that
+        spectrum (``pk_nl_boost`` gives P_NL / P_lin), so multiply by its prediction.
+        """
+        if self.pk_axes is None:
+            raise ValueError("this export has no P(k) axes; use predict()")
+        return self.predict(data_dict).reshape(-1, *self.pk_shape)
 
     def _network(self, x):
         for (weight, bias), (alpha, beta) in zip(self.weights[:-1], self.hyper_params):

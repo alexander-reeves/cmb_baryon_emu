@@ -165,7 +165,6 @@ else:
         sin,
         exp,
         sqrt,
-        trapz,
         concatenate,
         linalg,
         eye,
@@ -234,6 +233,12 @@ else:
     )
     from numpy import max as module_max
     from numpy import min as module_min
+
+    try:  # numpy >= 2.0 renamed trapz -> trapezoid (the JAX branch aliases it too)
+        from numpy import trapezoid as trapz
+    except ImportError:  # numpy < 2
+        from numpy import trapz
+
     from numpy.fft import rfft
     from scipy.linalg import block_diag
     import numpy as jnp  # alias so JAX-style `jnp.` calls work in numpy mode

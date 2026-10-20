@@ -1,0 +1,111 @@
+# cmb_baryon_emu training prior for the P(k) + CMB lensing run
+# (scripts/generate_lss_training_data.py).
+#
+# Cosmology follows the ACT DR6 lensing analysis (Madhavacheril et al. 2024, ApJ 962,
+# 113, Table 1, "Lensing + BAO" column): the BBN prior on omega_b and the n_s prior
+# are taken exactly. ACT's flat priors on omega_cdm [0.005, 0.99] and ln10As
+# [1.61, 4.0] are far wider than any posterior, so they are cut here to the region
+# the official lensing-only chains reach (they hold 100 % of the chain weight; chain
+# extremes omega_cdm 0.081-0.163, ln10As 2.62-3.52). ACT derives H0 and cuts it to
+# [40, 100]; here that becomes a flat prior on h. The generator skips samples with
+# Omega_m > 1 (3 % of this box; 0.02 % of the ACT chain weight).
+# omega_cdm >= 0.08 also keeps fb = Omega_b/Omega_m <= 0.22 (BCemu2025's range) if fb
+# is later tied to the cosmology.
+# Sum m_nu = 0.06 eV and N_eff = 3.044 (CAMB defaults), as in ACT.
+#
+# Baryons = the 8 BCemu2025 parameters, flat over the emulator's trained ranges (as in
+# emulator_config_cmb_baryon.yaml). They enter C_L^phiphi only; pk_lin and pk_nl are
+# dark-matter-only.
+#
+# Each parameter has:
+#   name          : canonical name (must be in utils.COSMO_PARAMS or BARYON_PARAMS)
+#   role          : "cosmo" or "baryon"
+#   distribution  : "flat" (uses min/max) or "gaussian" (uses distribution_kwargs.mu/cov)
+
+parameters:
+
+  # ---------------- cosmology (5) ----------------
+  - name: omega_cdm
+    role: cosmo
+    distribution: flat
+    min: 0.08
+    max: 0.20
+
+  - name: omega_b
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.02233
+      cov: 1.296e-07      # sigma = 0.00036
+
+  - name: ln10As
+    role: cosmo
+    distribution: flat
+    min: 2.4
+    max: 3.7
+
+  - name: n_s
+    role: cosmo
+    distribution: gaussian
+    distribution_kwargs:
+      mu: 0.96
+      cov: 4.0e-04        # sigma = 0.02
+
+  - name: h
+    role: cosmo
+    distribution: flat
+    min: 0.40
+    max: 1.00
+
+  # ---------------- baryons (8, BCemu2025) ----------------
+  - name: log10Mc
+    role: baryon
+    distribution: flat
+    min: 12.0
+    max: 14.5
+
+  - name: Theta_co
+    role: baryon
+    distribution: flat
+    min: 0.05
+    max: 0.60
+
+  - name: mu
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 2.5
+
+  - name: delta
+    role: baryon
+    distribution: flat
+    min: 3.0
+    max: 10.0
+
+  - name: eta
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 0.5
+
+  - name: deta
+    role: baryon
+    distribution: flat
+    min: 0.0
+    max: 0.5
+
+  - name: Nstar
+    role: baryon
+    distribution: flat
+    min: 0.01
+    max: 0.15
+
+  - name: fb
+    role: baryon
+    distribution: flat
+    min: 0.08
+    max: 0.22
+
+# Held fixed: tau changes neither P(k) nor C_L^phiphi.
+fixed:
+  tau: 0.0544

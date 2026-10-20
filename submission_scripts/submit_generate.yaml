@@ -4,6 +4,14 @@
 #
 # n_gridpoints must equal n_jobs * num_samps_per_index.
 # CAMB at lmax=10000 is the bottleneck (~seconds/sample) -> keep per-index small.
+#
+# Stores per sample: the 6 lensed/unlensed TT/TE/EE C_ell, the lensing spectrum
+# clkk (same ell grid), and pk_lin/pk_nl/pk_dmb on a fixed 300-point k grid out to
+# 50 Mpc^-1 x 21 redshifts (z = 0..5, float32). clkk and the P(k) come out of the
+# CAMB solves BCemuCAMB already runs for the C_ell, so they cost no extra compute.
+# pk_lin/pk_nl are dark-matter-only; only pk_dmb carries the baryon parameters.
+# Budget ~636 kB/sample -> ~636 GB at n_gridpoints=1e6, and roughly twice that
+# while the per-index npz files and total_data.h5 coexist during merge.
 
 - parameters:
     - scripts_dir: scripts
@@ -13,6 +21,7 @@
     - n_gridpoints: 1000000
     - config: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/configs/emulator_config_cmb_baryon.yaml
     - scratch: /cluster/scratch/areeves/cmb_baryon_td
+    - source_file: submission_scripts/setup_env.sh
 
 - name: generate_cmb_baryon_training_data
-  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > $[n_jobs]' --n_jobs=$[n_jobs] --n_gridpoints=$[n_gridpoints] --num_samps_per_index=$[num_samps_per_index] --main_n_cores_per_job=4 --merge_n_cores=8 --merge_memory=4096 --merge_time=24 --mode=jobarray --function='main,merge' --main_time=4 --main_memory=4096 --system=slurm --verbosity=info --scratch="$[scratch]" --filename_config="$[config]" --lmax=10000 --ell_min=2
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > $[n_jobs]' --n_jobs=$[n_jobs] --n_gridpoints=$[n_gridpoints] --num_samps_per_index=$[num_samps_per_index] --main_n_cores_per_job=4 --merge_n_cores=8 --merge_memory=4096 --merge_time=24 --mode=jobarray --function='main,merge' --main_time=4 --main_memory=4096 --system=slurm --verbosity=info --source_file="$[source_file]" --scratch="$[scratch]" --filename_config="$[config]" --lmax=10000 --ell_min=2 --kmax=50 --pk_nk=300 --pk_kmin=1e-4 --pk_kmax=50 --pk_z_stride=2

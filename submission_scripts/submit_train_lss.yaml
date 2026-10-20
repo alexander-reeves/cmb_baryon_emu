@@ -1,0 +1,40 @@
+# Train the P(k) + CMB lensing emulators on generate_lss_training_data.py output.
+# Run from the package root:
+#   source submission_scripts/setup_env.sh
+#   python3 -m esub.epipe submission_scripts/submit_train_lss.yaml
+#
+#   pk_lin       log P_lin(k, z), dark-matter-only        -> 5 cosmological inputs
+#   pk_nl_boost  log P_NL/P_lin (HMcode-2020, no feedback) -> 5 cosmological inputs
+#                (P_NL = pk_lin prediction x pk_nl_boost prediction)
+#   clpp         log C_L^phiphi with BCemu2025 feedback    -> 5 cosmological + 8 baryon
+#
+# --input_params defaults to 'auto', which drops the baryon inputs for pk_lin/pk_nl.
+# The P(k) targets are (31, 329) per sample, flattened to 10,199 outputs and
+# compressed by PCA after the log; the <model>_axes.npz sidecar records k [h/Mpc],
+# z, the shape and the ratio denominator.
+# ntrain leaves the last ~45k of the ~485k rows untouched for validate_pk_emulator.py.
+#
+# Needs the CUDA-enabled TensorFlow in cmb_baryon_venv (tensorflow[and-cuda],
+# installed 2026-10-20): the Aug 2026 jobs ran on CPU and hit the 24 h limit.
+
+- parameters:
+    - scripts_dir: scripts
+    - executable1: train_emulator.py
+    - data: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/data/lss_total_data.h5
+    - out: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/saved_models_lss
+    - ntrain: 440000
+    - epochs: 1000
+    - npca: 128
+    - source_file: submission_scripts/setup_env.sh
+    # per core: 8 x 16384 MB = 128 GB, ~2x the PCA path's peak (440k x 10,199 float32
+    # is 18 GB, plus its log and standardized copies)
+    - mem: 16384
+
+- name: train_pk_lin
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=8 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=pk_lin --model_name=pk_lin --log_preprocess --pca_preprocess --npca=$[npca]
+
+- name: train_pk_nl_boost
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=8 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=pk_nl --ratio_to=pk_lin --model_name=pk_nl_boost --log_preprocess --pca_preprocess --npca=$[npca]
+
+- name: train_clpp
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > 1' --n_jobs=1 --main_n_cores_per_job=8 --main_gpu=1 --main_gpu_memory=20000 --main_memory=$[mem] --main_time=24 --mode=jobarray --function=main --system=slurm --verbosity=info --source_file=$[source_file] --training_data_file=$[data] --path_output=$[out] --ntrain=$[ntrain] --epochs=$[epochs] --spectrum=clpp --model_name=clpp --log_preprocess

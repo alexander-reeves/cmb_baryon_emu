@@ -40,6 +40,7 @@ notebooks/.ipynb_checkpoints/
 # Legacy TensorFlow/Keras saved-model artifacts are too large for normal git.
 # Commit the lightweight NPZ exports below instead.
 saved_models/
+saved_models_*/
 
 # Keep only the lightweight validation fixture in data/.
 data/*

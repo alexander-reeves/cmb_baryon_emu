@@ -1,0 +1,33 @@
+# Generate the P(k) + CMB lensing training data (scripts/generate_lss_training_data.py).
+# Run from the package root:
+#   source submission_scripts/setup_env.sh
+#   python3 -m esub.epipe submission_scripts/submit_generate_lss.yaml
+#
+# One CAMB run per sample gives pk_lin and pk_nl (dark-matter-only, 31 z x 329 k
+# [h/Mpc]) and C_L^phiphi to L = 3000 with and without BCemu2025 feedback; the
+# baryon parameters enter clpp only. Priors: configs/emulator_config_lss_baryon.yaml
+# (ACT DR6 lensing). ~2.3 s per sample on 4 cores -> 500 samples per index ~20 min;
+# 500k samples ~1,250 core-hours. ~3 % of the LHC (Omega_m > 1) is skipped.
+# n_gridpoints must equal n_jobs * num_samps_per_index.
+#
+# After merge, copy total_data.h5 off scratch (/cluster/scratch is purged after
+# ~2 weeks; the Aug 2026 training set was lost that way):
+#   rsync -a /cluster/scratch/areeves/cmb_baryon_lss_td/total_data.h5 \
+#     /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/data/lss_total_data.h5
+#
+# Pilot (2,000 samples, separate directory) with the same settings:
+#   esub scripts/generate_lss_training_data.py --tasks='0 > 40' --n_jobs=40 \
+#     --n_gridpoints=2000 --num_samps_per_index=50 --scratch=/cluster/scratch/areeves/cmb_baryon_lss_pilot ...
+
+- parameters:
+    - scripts_dir: scripts
+    - executable1: generate_lss_training_data.py
+    - n_jobs: 1000
+    - num_samps_per_index: 500
+    - n_gridpoints: 500000
+    - config: /cluster/work/refregier/alexree/local_packages/cmb_baryon_emu/configs/emulator_config_lss_baryon.yaml
+    - scratch: /cluster/scratch/areeves/cmb_baryon_lss_td
+    - source_file: submission_scripts/setup_env.sh
+
+- name: generate_lss_training_data
+  cmd: esub $[scripts_dir]/$[executable1] --tasks='0 > $[n_jobs]' --n_jobs=$[n_jobs] --n_gridpoints=$[n_gridpoints] --num_samps_per_index=$[num_samps_per_index] --main_n_cores_per_job=4 --main_memory=2048 --main_time=4 --merge_n_cores=8 --merge_memory=4096 --merge_time=8 --mode=jobarray --function='main,merge' --system=slurm --verbosity=info --source_file="$[source_file]" --scratch="$[scratch]" --filename_config="$[config]" --lmax=3000 --lens_potential_accuracy=8
